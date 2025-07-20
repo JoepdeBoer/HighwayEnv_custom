@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+from math import copysign
 import copy
 import importlib
 import itertools
@@ -392,18 +392,33 @@ def distance_to_rect(line: tuple[np.ndarray, np.ndarray], rect: list[np.ndarray]
     :param rect: a rectangle [A, B, C, D]
     :return: the distance between R and the intersection of the segment RQ with the rectangle ABCD
     """
-    eps = 1e-6
     r, q = line
     a, b, c, d = rect
     u = b - a
     v = d - a
     u, v = u / np.linalg.norm(u), v / np.linalg.norm(v)
-    rqu = (q - r) @ u + eps
-    rqv = (q - r) @ v + eps
-    interval_1 = [(a - r) @ u / rqu, (b - r) @ u / rqu]
-    interval_2 = [(a - r) @ v / rqv, (d - r) @ v / rqv]
-    interval_1 = interval_1 if rqu >= 0 else list(reversed(interval_1))
-    interval_2 = interval_2 if rqv >= 0 else list(reversed(interval_2))
+    rqu = (q - r) @ u
+    rqv = (q - r) @ v # TODO what if dot rpoduct is zero ?
+
+    if rqu==0:
+        inf1 = copysign(np.inf, (a - r) @ u)
+        inf2 = copysign(np.inf, (b - r) @ u)
+        interval_1 = [inf1,inf2]
+        interval_2 = [(a - r) @ v / rqv, (d - r) @ v / rqv]
+        interval_2 = interval_2 if rqv >= 0 else list(reversed(interval_2))
+    elif rqv == 0:
+        inf1 = copysign(np.inf, (a - r) @ v)
+        inf2 = copysign(np.inf, (d - r) @ v)
+        interval_2 = [inf1, inf2]  # TODO check if sign needs to be correct
+        interval_1 = [(a - r) @ u / rqu, (b - r) @ u / rqu]
+        interval_1 = interval_1 if rqu >= 0 else list(reversed(interval_1))
+
+    else:
+        interval_1 = [(a - r) @ u / rqu, (b - r) @ u / rqu]
+        interval_1 = interval_1 if rqu >= 0 else list(reversed(interval_1))
+        interval_2 = [(a - r) @ v / rqv, (d - r) @ v / rqv]
+        interval_2 = interval_2 if rqv >= 0 else list(reversed(interval_2))
+
     if (
         interval_distance(*interval_1, *interval_2) <= 0
         and interval_distance(0, 1, *interval_1) <= 0
@@ -420,3 +435,4 @@ def solve_trinom(a, b, c):
         return (-b - np.sqrt(delta)) / (2 * a), (-b + np.sqrt(delta)) / (2 * a)
     else:
         return None, None
+
