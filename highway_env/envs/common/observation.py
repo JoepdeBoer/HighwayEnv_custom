@@ -319,14 +319,22 @@ class OccupancyGridObservation(ObservationType):
             np.floor((self.grid_size[:, 1] - self.grid_size[:, 0]) / self.grid_step),
             dtype=np.uint8,
         )
-        self.grid = np.zeros((len(self.features), *grid_shape))
+        self.clip = clip
+        if set(self.features).issubset({"presence", "on_road"}):
+            self.grid = np.zeros((len(self.features), *grid_shape), dtype=np.bool)
+            self.clip = False # clips arrary to be 1 or 0  but for boolean this is not required
+        else:
+            self.grid = np.zeros((len(self.features), *grid_shape))
+
         self.features_range = features_range
         self.absolute = absolute
         self.align_to_vehicle_axes = align_to_vehicle_axes
-        self.clip = clip
+
         self.as_image = as_image
 
     def space(self) -> spaces.Space:
+        if len(self.features) <= 2 and  set(self.features).issubset({"presence", "on_road"}):
+            return spaces.MultiBinary(n=self.grid.shape) # binary grid
         if self.as_image:
             return spaces.Box(shape=self.grid.shape, low=0, high=255, dtype=np.uint8)
         else:
@@ -359,7 +367,7 @@ class OccupancyGridObservation(ObservationType):
             raise NotImplementedError()
         else:
             # Initialize empty data
-            self.grid.fill(np.nan)
+            self.grid.fill(False) # Changed to False
 
             # Get nearby traffic data
             df = pd.DataFrame.from_records(
@@ -477,11 +485,9 @@ class OccupancyGridObservation(ObservationType):
                     ).clip(0, lane.length)
                     for waypoint in waypoints:
                         cell = self.pos_to_index(lane.position(waypoint, 0))
-                        if (
-                            0 <= cell[0] < self.grid.shape[-2]
-                            and 0 <= cell[1] < self.grid.shape[-1]
-                        ):
-                            self.grid[layer_index, cell[0], cell[1]] = 1
+                        if (0 <= cell[0] < self.grid.shape[-2]
+                            and 0 <= cell[1] < self.grid.shape[-1]):
+                            self.grid[layer_index, cell[0], cell[1]] = True
 
     def fill_road_layer_by_cell(self, layer_index) -> None:
         """
@@ -496,7 +502,7 @@ class OccupancyGridObservation(ObservationType):
                 for _to in road.network.graph[_from].keys():
                     for lane in road.network.graph[_from][_to]:
                         if lane.on_lane(self.index_to_pos((i, j))):
-                            self.grid[layer_index, i, j] = 1
+                            self.grid[layer_index, i, j] = True
 
 
 class KinematicsGoalObservation(KinematicObservation):
@@ -525,7 +531,7 @@ class KinematicsGoalObservation(KinematicObservation):
                         -np.inf,
                         np.inf,
                         shape=obs["observation"].shape,
-                        dtype=np.float64,
+                        dtype=np.float32,
                     ),
                 )
             )
@@ -620,6 +626,28 @@ class TupleObservation(ObservationType):
     def observe(self) -> tuple:
         return tuple(obs_type.observe() for obs_type in self.observation_types)
 
+class DictObservation(ObservationType):
+    def __init__(
+        self, env: AbstractEnv, observation_configs: list[dict], **kwargs
+    ) -> None:
+        super().__init__(env)
+        self.observation_types = [
+            observation_factory(self.env, obs_config)
+            for obs_config in observation_configs
+        ]
+        self.observation_names = [
+            obs_config["type"] for obs_config in observation_configs] # Does not allow for multiple observation of the same type
+
+    def space(self) -> spaces.Space:
+        obs_spaces = [(self.observation_names[i], obs_type.space()) for i, obs_type in enumerate(self.observation_types)]
+        return spaces.Dict(spaces = obs_spaces )
+
+    def observe(self) -> dict:
+        obs = {}
+        for i, obs_type in enumerate(self.observation_types):
+            obs[self.observation_names[i]] = obs_type.observe()
+        return obs
+
 
 class ExitObservation(KinematicObservation):
     """Specific to exit_env, observe the distance to the next exit lane as part of a KinematicObservation."""
@@ -683,7 +711,7 @@ class LidarObservation(ObservationType):
         self,
         env,
         cells: int = 16,
-        maximum_range: float = 60,
+        maximum_range: float = 128,
         normalize: bool = True,
         **kwargs,
     ):
@@ -786,6 +814,8 @@ def observation_factory(env: AbstractEnv, config: dict) -> ObservationType:
         return MultiAgentObservation(env, **config)
     elif config["type"] == "TupleObservation":
         return TupleObservation(env, **config)
+    elif config["type"] == "DictObservation":
+        return DictObservation(env, **config)
     elif config["type"] == "LidarObservation":
         return LidarObservation(env, **config)
     elif config["type"] == "ExitObservation":
