@@ -18,6 +18,7 @@ class TwoWayEnv(AbstractEnv):
     in the CMDP/BMDP framework.
     """
 
+
     @classmethod
     def default_config(cls) -> dict:
         config = super().default_config()
@@ -27,9 +28,8 @@ class TwoWayEnv(AbstractEnv):
                 "action": {
                     "type": "DiscreteMetaAction",
                 },
-                "collision_reward": 0,
-                "left_lane_constraint": 1,
-                "left_lane_reward": 0.2,
+                "crash_reward": -10,
+                "right_lane_reward": 0.2,
                 "high_speed_reward": 0.8,
             }
         )
@@ -47,19 +47,25 @@ class TwoWayEnv(AbstractEnv):
         )
 
     def _rewards(self, action: int) -> dict[str, float]:
-        neighbours = self.road.network.all_side_lanes(self.vehicle.lane_index)
+        "all rewards positive weigths can be negative"
+        nr_lanes = len(self.road.network.all_side_lanes(self.vehicle.lane_index))+1
+        if self._is_terminated() :
+            return {"high_speed_reward": 0, "right_lane_reward": 0, "crash_reward":1}
+
         return {
-            "high_speed_reward": self.vehicle.speed_index
-            / (self.vehicle.target_speeds.size - 1),
-            "left_lane_reward": (
-                len(neighbours) - 1 - self.vehicle.target_lane_index[2]
-            )
-            / (len(neighbours) - 1),
+            "high_speed_reward": self.vehicle.speed
+            / (self.vehicle.MAX_SPEED),
+            "right_lane_reward": (self.vehicle.lane_index[2] + 1)/(nr_lanes), # Index 2 is current lane index
+            "crash_reward": 0
         }
 
     def _is_terminated(self) -> bool:
         """The episode is over if the ego vehicle crashed or the time is out."""
-        return self.vehicle.crashed
+        crashed = self.vehicle.crashed
+        offroad = not self.vehicle.on_road
+
+        return crashed or offroad
+        return self.vehicle.crashed or not self.vehicle.on_road
 
     def _is_truncated(self) -> bool:
         return False
