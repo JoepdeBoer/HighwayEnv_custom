@@ -160,7 +160,7 @@ class KinematicObservation(ObservationType):
         self,
         env: AbstractEnv,
         features: list[str] = None,
-        vehicles_count: int = 5,
+        vehicles_count: int = 1,
         features_range: dict[str, list[float]] = None,
         absolute: bool = False,
         order: str = "sorted",
@@ -237,23 +237,24 @@ class KinematicObservation(ObservationType):
         # Add ego-vehicle
         df = pd.DataFrame.from_records([self.observer_vehicle.to_dict()])
         # Add nearby traffic
-        close_vehicles = self.env.road.close_objects_to(
-            self.observer_vehicle,
-            self.env.PERCEPTION_DISTANCE,
-            count=self.vehicles_count - 1,
-            see_behind=self.see_behind,
-            sort=self.order == "sorted",
-            vehicles_only=not self.include_obstacles,
-        )
-        if close_vehicles:
-            origin = self.observer_vehicle if not self.absolute else None
-            vehicles_df = pd.DataFrame.from_records(
-                [
-                    v.to_dict(origin, observe_intentions=self.observe_intentions)
-                    for v in close_vehicles[-self.vehicles_count + 1 :]
-                ]
+        if self.vehicles_count > 1:
+            close_vehicles = self.env.road.close_objects_to(
+                self.observer_vehicle,
+                self.env.PERCEPTION_DISTANCE,
+                count=self.vehicles_count - 1,
+                see_behind=self.see_behind,
+                sort=self.order == "sorted",
+                vehicles_only=not self.include_obstacles,
             )
-            df = pd.concat([df, vehicles_df], ignore_index=True)
+            if close_vehicles:
+                origin = self.observer_vehicle if not self.absolute else None
+                vehicles_df = pd.DataFrame.from_records(
+                    [
+                        v.to_dict(origin, observe_intentions=self.observe_intentions)
+                        for v in close_vehicles[-self.vehicles_count + 1 :]
+                    ]
+                )
+                df = pd.concat([df, vehicles_df], ignore_index=True)
 
         df = df[self.features]
 
@@ -708,7 +709,7 @@ class LidarObservation(ObservationType):
 
     def trace(self, origin: np.ndarray, origin_velocity: np.ndarray) -> np.ndarray:
         self.origin = origin.copy()
-        self.grid = np.ones((self.cells, 2), dtype=np.float32) * self.maximum_range
+        self.grid = np.ones((self.cells, 2)) * self.maximum_range
 
         for obstacle in self.env.road.vehicles + self.env.road.objects:
             if obstacle is self.observer_vehicle or not obstacle.solid:
