@@ -331,7 +331,7 @@ class OccupancyGridObservation(ObservationType):
             return spaces.Box(shape=self.grid.shape, low=0, high=255, dtype=np.uint8)
         else:
             return spaces.Box(
-                shape=self.grid.shape, low=-np.inf, high=np.inf, dtype=np.float32
+                shape=self.grid.shape, low=0, high=1, dtype=np.int8 #TODO this breaks everything else but presensce and on_road
             )
 
     def normalize(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -359,7 +359,7 @@ class OccupancyGridObservation(ObservationType):
             raise NotImplementedError()
         else:
             # Initialize empty data
-            self.grid.fill(np.nan)
+            self.grid.fill(0)
 
             # Get nearby traffic data
             df = pd.DataFrame.from_records(
@@ -768,27 +768,52 @@ class LidarObservation(ObservationType):
     def index_to_direction(self, index: int) -> np.ndarray:
         return np.array([np.cos(index * self.angle), np.sin(index * self.angle)])
 
+class DictObservation(ObservationType):
+    def __init__(
+        self, env: AbstractEnv, observation_configs: list[dict], **kwargs
+    ) -> None:
+        super().__init__(env)
+        self.observation_types = [
+            observation_factory(self.env, obs_config)
+            for obs_config in observation_configs
+        ]
+        self.observation_names = [
+            obs_config["type"] for obs_config in observation_configs] # Does not allow for multiple observation of the same type
+
+    def space(self) -> spaces.Space:
+        obs_spaces = [(self.observation_names[i], obs_type.space()) for i, obs_type in enumerate(self.observation_types)]
+        return spaces.Dict(spaces = obs_spaces )
+
+    def observe(self) -> dict:
+        obs = {}
+        for i, obs_type in enumerate(self.observation_types):
+            obs[self.observation_names[i]] = obs_type.observe()
+        return obs
+
 
 def observation_factory(env: AbstractEnv, config: dict) -> ObservationType:
-    if config["type"] == "TimeToCollision":
-        return TimeToCollisionObservation(env, **config)
-    elif config["type"] == "Kinematics":
-        return KinematicObservation(env, **config)
-    elif config["type"] == "OccupancyGrid":
-        return OccupancyGridObservation(env, **config)
-    elif config["type"] == "KinematicsGoal":
-        return KinematicsGoalObservation(env, **config)
-    elif config["type"] == "GrayscaleObservation":
-        return GrayscaleObservation(env, **config)
-    elif config["type"] == "AttributesObservation":
-        return AttributesObservation(env, **config)
-    elif config["type"] == "MultiAgentObservation":
-        return MultiAgentObservation(env, **config)
-    elif config["type"] == "TupleObservation":
-        return TupleObservation(env, **config)
-    elif config["type"] == "LidarObservation":
-        return LidarObservation(env, **config)
-    elif config["type"] == "ExitObservation":
-        return ExitObservation(env, **config)
-    else:
-        raise ValueError("Unknown observation type")
+    match config["type"]:
+        case "TimeToCollision":
+            return TimeToCollisionObservation(env, **config)
+        case "DictObservation":
+            return DictObservation(env, **config)
+        case "Kinematics":
+            return KinematicObservation(env, **config)
+        case "OccupancyGrid":
+            return OccupancyGridObservation(env, **config)
+        case "KinematicsGoal":
+            return KinematicsGoalObservation(env, **config)
+        case "GrayscaleObservation":
+            return GrayscaleObservation(env, **config)
+        case "AttributesObservation":
+            return AttributesObservation(env, **config)
+        case "MultiAgentObservation":
+            return MultiAgentObservation(env, **config)
+        case "TupleObservation":
+            return TupleObservation(env, **config)
+        case "LidarObservation":
+            return LidarObservation(env, **config)
+        case "ExitObservation":
+            return ExitObservation(env, **config)
+        case _:
+            raise ValueError("Unknown observation type")
