@@ -18,15 +18,15 @@ class Vehicle(RoadObject):
     It's state is propagated depending on its steering and acceleration actions.
     """
 
-    LENGTH = 5.0
+    LENGTH = 5
     """ Vehicle length [m] """
     WIDTH = 2.0
     """ Vehicle width [m] """
     DEFAULT_INITIAL_SPEEDS = [23, 25]
     """ Range for random initial speeds [m/s] """
-    MAX_SPEED = 40.0
+    MAX_SPEED = 30
     """ Maximum reachable speed [m/s] """
-    MIN_SPEED = -40.0
+    MIN_SPEED = -30
     """ Minimum reachable speed [m/s] """
     HISTORY_SIZE = 30
     """ Length of the vehicle state history, for trajectory display"""

@@ -683,7 +683,7 @@ class LidarObservation(ObservationType):
         self,
         env,
         cells: int = 16,
-        maximum_range: float = 60,
+        maximum_range: float = 64,
         normalize: bool = True,
         **kwargs,
     ):

@@ -52,7 +52,7 @@ class RacetrackEnv(AbstractEnv):
                 "right_lane_reward": .7,
                 "action_reward": -0.3,
                 "controlled_vehicles": 1,
-                "other_vehicles": 1,
+                "other_vehicles": 10,
                 "screen_width": 600,
                 "screen_height": 600,
                 "centering_position": [0.5, 0.5],
@@ -106,7 +106,8 @@ class RacetrackEnv(AbstractEnv):
 
         # Set Speed Limits for Road Sections - Straight, Turn20, Straight,
         # Turn 15, Turn15, Straight, Turn25x2, Turn18
-        speedlimits = [None, 10, 10, 10, 10, 10, 10, 10, 10]
+        # speedlimits = [None, 10, 10, 10, 10, 10, 10, 10, 10]
+        speedlimits = [self.config['speed_limit'] for i in range(9)]
 
         # Initialise First Lane
         lane = StraightLane(
@@ -391,8 +392,16 @@ class RacetrackEnv(AbstractEnv):
                 else self.road.network.random_lane_index(rng)
             )
             controlled_vehicle = self.action_type.vehicle_class.make_on_lane(
-                self.road, lane_index, speed=None, longitudinal=rng.uniform(20, 50)
+                self.road, lane_index, speed=None, longitudinal=rng.uniform(20, 50),
             )
+            controlled_vehicle.LENGTH =8
+            controlled_vehicle.MASS = 4
+            controlled_vehicle.LENGTH_A= controlled_vehicle.LENGTH / 2  # [m]
+            controlled_vehicle.LENGTH_B = controlled_vehicle.LENGTH / 2  # [m]
+            controlled_vehicle.INERTIA_Z: float = 1 / 12 * controlled_vehicle.MASS * (
+                    controlled_vehicle.LENGTH ** 2 + controlled_vehicle.WIDTH ** 2)  # [kg.m2]
+            controlled_vehicle.FRICTION_FRONT: float = 30 * controlled_vehicle.MASS # [N]
+            controlled_vehicle.FRICTION_REAR: float = 50 * controlled_vehicle.MASS
 
             self.controlled_vehicles.append(controlled_vehicle)
             self.road.vehicles.append(controlled_vehicle)
@@ -410,7 +419,7 @@ class RacetrackEnv(AbstractEnv):
             self.road.vehicles.append(vehicle)
 
             # Other vehicles
-            for i in range(rng.integers(self.config["other_vehicles"])):
+            for i in range(self.config["other_vehicles"]):
                 rand_lane_index = self.road.network.random_lane_index(rng)
 
                 vehicle = IDMVehicle.make_on_lane(
@@ -419,14 +428,14 @@ class RacetrackEnv(AbstractEnv):
                     longitudinal=rng.uniform(
                         low=0, high=self.road.network.get_lane(rand_lane_index).length
                     ),
-                    speed=6 + rng.uniform(high=3),
+                    speed=self.config["average_speed"] + rng.uniform(high=3),
                 )
                 # Prevent early collisions
                 for v in self.road.vehicles:
-                    if np.linalg.norm(vehicle.position - v.position) < 20:
-                        break
-                else:
-                    self.road.vehicles.append(vehicle)
+                    if np.linalg.norm(vehicle.position - v.position) < 10:
+                        continue
+                    else:
+                        self.road.vehicles.append(vehicle)
 
 
 

@@ -35,8 +35,8 @@ class BicycleVehicle(Vehicle):
 
     See Chapter 2 of Lateral Vehicle Dynamics. Vehicle Dynamics and Control. Rajamani, R. (2011)
     """
-
-    MASS: float = 1  # [kg]
+    Vehicle.LENGTH = 5
+    MASS: float = 1  # [kg] # was 1
     LENGTH_A: float = Vehicle.LENGTH / 2  # [m]
     LENGTH_B: float = Vehicle.LENGTH / 2  # [m]
     INERTIA_Z: float = 1 / 12 * MASS * (Vehicle.LENGTH**2 + Vehicle.WIDTH**2)  # [kg.m2]
@@ -44,7 +44,7 @@ class BicycleVehicle(Vehicle):
     FRICTION_REAR: float = 15.0 * MASS  # [N]
 
     MAX_ANGULAR_SPEED: float = 2 * np.pi  # [rad/s]
-    MAX_SPEED: float = 15  # [m/s]
+    MAX_SPEED: float = 40  # [m/s]
 
     def __init__(
         self, road: Road, position: Vector, heading: float = 0, speed: float = 0
