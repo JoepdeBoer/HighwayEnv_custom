@@ -8,6 +8,7 @@ from highway_env.road.lane import CircularLane, LineType, StraightLane
 from highway_env.road.road import Road, RoadNetwork
 from highway_env.vehicle.behavior import IDMVehicle
 from highway_env.vehicle.objects import Obstacle
+from highway_env.vehicle.controller import ControlledVehicle
 
 
 class RacetrackEnv(AbstractEnv):
@@ -47,7 +48,8 @@ class RacetrackEnv(AbstractEnv):
                 "duration": 300,
                 "collision_reward": -1,
                 "lane_centering_cost": 4,
-                "lane_centering_reward": 1,
+                "lane_centering_reward": .7,
+                "right_lane_reward": .7,
                 "action_reward": -0.3,
                 "controlled_vehicles": 1,
                 "other_vehicles": 1,
@@ -71,6 +73,12 @@ class RacetrackEnv(AbstractEnv):
 
     def _rewards(self, action: np.ndarray) -> dict[str, float]:
         _, lateral = self.vehicle.lane.local_coordinates(self.vehicle.position)
+        neighbours = self.road.network.all_side_lanes(self.vehicle.lane_index)
+        lane = (
+            self.vehicle.target_lane_index[2]
+            if isinstance(self.vehicle, ControlledVehicle)
+            else self.vehicle.lane_index[2]
+        )
         return {
             "lane_centering_reward": 1
             / (1 + self.config["lane_centering_cost"] * lateral**2), #
@@ -78,6 +86,7 @@ class RacetrackEnv(AbstractEnv):
             "collision_reward": self.vehicle.crashed,
             "on_road_reward": self.vehicle.on_road,
             "speed_reward": self.vehicle.speed/self.vehicle.MAX_SPEED,
+            "right_lane_reward": lane / max(len(neighbours) - 1, 1),
         }
 
     def _is_terminated(self) -> bool:
